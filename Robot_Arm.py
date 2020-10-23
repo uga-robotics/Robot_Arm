@@ -49,33 +49,27 @@ class RobotArm:
         self.motors[0].set_angle(angle)
 
     # Sets the angles for the shoulder motors
-    def set_shoulder(self,angle,show_pos=False,actual=False):
-        if not actual:
-            angle = angle + 59
+    def set_shoulder(self,angleRef,show_pos=False):
         if angle < 58 or angle > 240:
             print("Out of range shoulder")
         else:
-            self.motors[1].set_angle(angle)
-            self.motors[2].set_angle(self.home_angle[2]-anlge) # Motor 3 is about 180 degrees from motor 2
+            self.motors[1].set_angle(angleRef + 59)
+            self.motors[2].set_angle(self.home_angle[2]-angleRef) # Motor 3 is about 180 degrees from motor 2
 
     # Sets the motor angles for the elbow motors
-    def set_elbow(self,angle,show_pos=False,actual=False,radians=False):
-        if radians:
-            angle = np.degrees(angle)
-        if not actual:
-            angle = angle + 60
+    def set_elbow(self,angleRef,show_pos=False):
         if angle < 58 or angle > 264:
             print("Out of range elbow")
         else:
-            self.motors[3].set_angle(angle)
-            self.motors[4].set_angle(self.home_angle[4]-angle)
+            self.motors[3].set_angle(angleRef + 60)
+            self.motors[4].set_angle(self.home_angle[4]-angleRef)
 
     # Sets Wrist veritcal motor
-    def set_wrist_vertical(self,angle,show_pos=False,actual=False,radians=False):
+    def set_wrist_vertical(self,angleRef,show_pos=False,actual=False,radians=False):
         if radians:
             angle = np.degrees(angle)
         if not actual:
-            angle = angle + 57
+            angle = angleRef + 57
         if angle < 54 or angle > 244:
             print("Out of range wrist")
         else:
@@ -86,14 +80,14 @@ class RobotArm:
         self.motors[6].set_angle(angle)
 
     # Claw open and close
-    def hand(self,state="",angle=0):
+    def hand(self,state="",angleRef=0):
         if state != "":
             if state == "open":
                 self.motors[-1].set_angle(150)
             if state == "close":
                 self.motors[-1].set_angle(0)
         else:
-            self.motor[-1].set_angle(angle)
+            self.motor[-1].set_angle(angleRef)
 
     # Fully extends the arm
     def full_extend(self):
