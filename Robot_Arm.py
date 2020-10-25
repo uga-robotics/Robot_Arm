@@ -5,12 +5,12 @@ from dynio import *
 
 class RobotArm:
 
-    def __init__(self):
+    def __init__(self,path="/dev/ttyUSB0"):
         self.motors = [] # Motors are ordered from bottem to top
         self.home_angle = [] # Motors are ordered from bottem to top
         self.robot_arm_dxl = None
         # Use the following for OSX/Linux systems to select serial ports and use COMM ports for windows
-        self.robot_arm_dxl = dxl.DynamixelIO("/dev/ttyUSB0")
+        self.robot_arm_dxl = dxl.DynamixelIO(path)
         # These are constants
         self.BASE_HEIGHT = 4.3897638
         self.UPPER_ARM = 5.6929134
@@ -27,10 +27,6 @@ class RobotArm:
     def __del__(self):
         self.home()
 
-        # Matrix for entire arm (I can not explain the math you will have to go learn it)
-        self.H0_3 = np.dot(np.dot(H0_1,H1_2),H2_3)
-        print(np.matrix(self.H0_3))
-
     # Gets the home position of the motors (Full Retracted)
     def calibrate(self,show_pos=False):
         for motor in self.motors:
@@ -46,12 +42,14 @@ class RobotArm:
 
     # Sets the base motor
     def set_base(self,angle,show_pos=False):
+        if angle < 0 or angle > 300:
+            print("Base angle out of range, angle must be between 0 and 300.")
         self.motors[0].set_angle(angle)
 
     # Sets the angles for the shoulder motors
     def set_shoulder(self,angleRef,show_pos=False):
         if angle < 58 or angle > 240:
-            print("Out of range shoulder")
+            print("Shoulder angle out of range, angle must be between 58 and 240 degrees.")
         else:
             self.motors[1].set_angle(angleRef + 59)
             self.motors[2].set_angle(self.home_angle[2]-angleRef) # Motor 3 is about 180 degrees from motor 2
@@ -59,7 +57,7 @@ class RobotArm:
     # Sets the motor angles for the elbow motors
     def set_elbow(self,angleRef,show_pos=False):
         if angle < 58 or angle > 264:
-            print("Out of range elbow")
+            print("Elbow angle out of range, angle must be between 58 and 264 degrees.")
         else:
             self.motors[3].set_angle(angleRef + 60)
             self.motors[4].set_angle(self.home_angle[4]-angleRef)
@@ -71,7 +69,7 @@ class RobotArm:
         if not actual:
             angle = angleRef + 57
         if angle < 54 or angle > 244:
-            print("Out of range wrist")
+            print("Wrist angle out of range, angle must be between 54 and 244 degrees.")
         else:
             self.motors[5].set_angle(angle)
 
