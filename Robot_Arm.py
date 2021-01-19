@@ -3,93 +3,149 @@ import math
 import numpy as np
 from dynio import *
 
+### Class of the Trossen Robotics Reactor Robot Arm. Arm moves incrementally to smooth out motion
+### and makes movement less violent.
 class RobotArm:
 
-    def __init__(self,path="/dev/ttyUSB0"):
+    def __init__(self):
+        self.current_x = 0
+        self.current_z = 0
         self.motors = [] # Motors are ordered from bottem to top
         self.home_angle = [] # Motors are ordered from bottem to top
         self.robot_arm_dxl = None
-        # Use the following for OSX/Linux systems to select serial ports and use COMM ports for windows
-        self.robot_arm_dxl = dxl.DynamixelIO(path)
-        # These are constants
-        self.BASE_HEIGHT = 4.3897638
-        self.UPPER_ARM = 5.6929134
-        self.FOREARM = 5.6889764
-        self.WRIST = 5.4015748
-        # Motor IDs must start from 1
+        self.robot_arm_dxl = dxl.DynamixelIO("/dev/ttyUSB0")
+        # Constants for the dimensions of the arm
+        self.BASE_HEIGHT = 4.07
+        self.UPPER_ARM = 5.7165354
+        self.FOREARM = 5.7165354
+        self.WRIST = 6.10236
+        # Creates an instatnace for each motor and sets them to position_mode
         for i in range(1,9):
                 self.motors.append(self.robot_arm_dxl.new_ax12(i))
+                self.motors[-1].set_position_mode(goal_current=512)
                 self.motors[-1].torque_enable()
-                self.motors[-1].set_position_mode(goal_current=980) #Sets the motors to position mode and sets there max torque
         self.calibrate()
-
+        # Changes the torque values to make movements less violent
+        for i in range(1,len(self.motors)):
+            self.motors[i].set_position_mode(goal_current=475)
+        self.set_base(140)
+        time.sleep(.5)
+        self.move(5,4)
+        self.hand_close()
 
     def __del__(self):
-        self.home()
+        for motor in self.motors:
+            motor.torque_disable()
 
-    # Gets the home position of the motors (Full Retracted)
+    # Gets the current positions of each motor insure arm is in home position
     def calibrate(self,show_pos=False):
         for motor in self.motors:
             if show_pos:
                 print(motor.get_position())
             self.home_angle.append(motor.get_angle())
 
-    # Sets each motor to there home position
+    # Moves the arm to the home position
     def home(self):
         for i in reversed(range(0,len(self.motors))):
             self.motors[i].set_angle(self.home_angle[i])
             time.sleep(.01)
 
-    # Sets the base motor
-    def set_base(self,angle,show_pos=False):
-        if angle < 0 or angle > 300:
-            print("Base angle out of range, angle must be between 0 and 300.")
-        self.motors[0].set_angle(angle)
-
-    # Sets the angles for the shoulder motors
-    def set_shoulder(self,angleRef,show_pos=False):
-        if angle < 58 or angle > 240:
-            print("Shoulder angle out of range, angle must be between 58 and 240 degrees.")
-        else:
-            self.motors[1].set_angle(angleRef + 59)
-            self.motors[2].set_angle(self.home_angle[2]-angleRef) # Motor 3 is about 180 degrees from motor 2
-
-    # Sets the motor angles for the elbow motors
-    def set_elbow(self,angleRef,show_pos=False):
-        if angle < 58 or angle > 264:
-            print("Elbow angle out of range, angle must be between 58 and 264 degrees.")
-        else:
-            self.motors[3].set_angle(angleRef + 60)
-            self.motors[4].set_angle(self.home_angle[4]-angleRef)
-
-    # Sets Wrist veritcal motor
-    def set_wrist_vertical(self,angleRef,show_pos=False,actual=False,radians=False):
+    # Sets the base angle
+    def set_base(self,angle,show_pos=False,radians=False):
+        # Converts radians to degrees
         if radians:
             angle = np.degrees(angle)
+        # Shows the position the arm is supposed to move to
+        if show_pos:
+            position = angle * (1023/300)
+            print(int(position))
+        #Gets the direction the arm needs to more (positive or negative)
+        direction = -(self.motors[0].get_angle() - (angle+1))/abs(self.motors[0].get_angle() - (angle+1))
+        #Creates a range of values the arm will move through to complete the motion
+        for move_angle in np.arange(self.motors[0].get_angle(),angle+1,2*direction):
+            self.motors[0].set_angle(move_angle)
+
+    def set_shoulder(self,angleRef,radians=False):
+        # Gets the direction the arm needs to more (positive or negative)
+        direction = -(self.motors[1].get_angle() - (angleRef+60))/abs(self.motors[1].get_angle() - (angleRef+60))
+        # Creates a range of values the arm will move through to complete the motion
+        for move_angle in np.arange(self.motors[1].get_angle(),angleRef+60,2*direction):
+            self.motors[1].set_angle(move_angle)
+            self.motors[2].set_angle(self.home_angle[2]-(move_angle-60))
+
+    def set_elbow(self,angleRef,radians=False):
+        # Creates a range of values the arm will move through to complete the motion
+        direction = -(self.motors[3].get_angle() - (angleRef+60))/abs(self.motors[1].get_angle() - (angleRef+60))
+        # Creates a range of values the arm will move through to complete the motion
+        for move_angle in np.arange(self.motors[3].get_angle(),angleRef+60,2*direction):
+            self.motors[3].set_angle(move_angle)
+            self.motors[4].set_angle(self.home_angle[4]-(move_angle-60))
+
+    def set_wrist_vertical(self,angle,actual=False,radians=False):
+        # Converts radians to degrees
+        if radians:
+            angle = np.degrees(angle)
+        # Shows the position the arm is supposed to move to
         if not actual:
-            angle = angleRef + 57
+            angle = angle + 54
         if angle < 54 or angle > 244:
-            print("Wrist angle out of range, angle must be between 54 and 244 degrees.")
+            print("Out of range wrist")
         else:
-            self.motors[5].set_angle(angle)
+            #Creates a range of values the arm will move through to complete the motion
+            direction = -(self.motors[5].get_angle() - (angle+1))/abs(self.motors[5].get_angle() - (angle+1))
+            # Creates a range of values the arm will move through to complete the motion
+            for move_angle in np.arange(self.motors[5].get_angle(),angle+1,3*direction):
+                self.motors[5].set_angle(move_angle)
 
-    # Sets wrist rotation
-    def set_wrist_angle(self,angle,show_pos=False):
-        self.motors[6].set_angle(angle)
+    def set_wrist_angle(self,angle,actual=False,show_pos=False):
+        direction = -(self.motors[6].get_angle() - (angle+1))/abs(self.motors[6].get_angle() - (angle+1))
+        for move_angle in np.arange(self.motors[6].get_angle(),angle+1,direction):
+            self.motors[6].set_angle(move_angle)
 
-    # Claw open and close
-    def hand(self,state="",angleRef=0):
-        if state != "":
-            if state == "open":
-                self.motors[-1].set_angle(150)
-            if state == "close":
-                self.motors[-1].set_angle(0)
-        else:
-            self.motor[-1].set_angle(angleRef)
+    # Sets the end effector motor to velocity mode and closes the hand until it can no longer move
+    def hand_close(self):
+        self.motors[-1].set_velocity_mode()
+        self.motors[-1].set_velocity(-512)
+        time.sleep(.15)
+        #Checks to see if the end effector is moving
+        while(abs(self.motors[-1].read_control_table("Present_Speed")) != 0):
+            continue
+        self.motors[-1].set_velocity(0)
 
-    # Fully extends the arm
+    # Sets the end effector to the open position
+    def hand_open(self):
+        self.motors[-1].set_position_mode()
+        self.motors[-1].set_angle(150)
+
+    # Full extends the arm
     def full_extend(self):
         self.set_elbow(240)
         time.sleep(.15)
         self.set_shoulder(150)
         self.set_wrist_vertical(150)
+
+    # Sets the motors to the currnt angle to insure they are not straining against each other
+    def ___sync_motors__(self):
+        self.motors[4].set_angle(self.motors[4].get_angle())
+        self.motors[2].set_angle(self.motors[2].get_angle())
+
+    # There is a lot of math here that I cannot explain in a comment so *INVERSE KINEMATICS MAGIC*
+    def move(self,x,z,phi=180):
+        z = z + 1.75
+        a = np.sqrt(self.BASE_HEIGHT**2 + x**2)
+        alpha = np.tan(x/self.BASE_HEIGHT)
+        c = np.sqrt(x**2 + (self.WRIST+(z-self.BASE_HEIGHT))**2)
+        omega = np.arccos((c**2 + x** 2 - (self.WRIST + (z-self.BASE_HEIGHT))**2)/(2.0*c*x))
+        theta_2 = np.arccos((self.UPPER_ARM**2 + self.FOREARM**2 - c**2)/(2.0*self.UPPER_ARM*self.FOREARM)) - np.deg2rad(16)
+        epsilon = np.arccos((c**2+self.UPPER_ARM**2-self.FOREARM**2)/(2.0*c*self.UPPER_ARM))
+        theta_1 = np.pi - (epsilon + omega) - np.deg2rad(10)
+        theta_3 = np.deg2rad(phi) - ((epsilon + omega) + theta_2)
+        theta_1 = np.degrees(theta_1)
+        theta_2 = np.degrees(theta_2)
+        self.set_elbow(theta_2)
+        self.set_shoulder(theta_1)
+        if theta_3 < 0:
+            theta_3 = 0
+        self.set_wrist_vertical(theta_3,radians=True)
+        time.sleep(2)
+        self.___sync_motors__()
